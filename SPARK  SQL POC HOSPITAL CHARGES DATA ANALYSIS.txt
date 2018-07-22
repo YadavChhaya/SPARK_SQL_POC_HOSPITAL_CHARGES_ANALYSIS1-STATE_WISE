@@ -1,0 +1,115 @@
+Spark SQL POC – Hospital Charges Data Analysis
+==============================================
+
+Dataset Description
+===================
+    0. DRG Definition: The code and description identifying the MS-DRG. MS-DRGs are a classification system that groups similar clinical conditions (diagnoses) and procedures furnished by the hospital during their stay.
+
+    1. Provider Id: The CMS Certification Number (CCN) assigned to the Medicare-certified hospital facility.
+
+    2. Provider Name: The name of the provider.
+
+    3. Provider Street Address: The provider’s street address.
+
+    4. Provider City: The city where the provider is located.
+
+    5. Provider State: The state where the provider is located.
+
+    6. Provider Zip Code: The provider’s zip code.
+
+    7. Provider HRR: The Hospital Referral Region (HRR) where the provider is located.
+
+    8. Total Discharges: The number of discharges billed by the provider for inpatient hospital services.
+
+    9. Average Covered Charges: The provider’s average charge for services covered by Medicare for all discharges in the MS-DRG. These will vary from hospital to hospital because of the differences in hospital charge structures.
+
+    10. Average Total Payments: The average total payments to all providers for the MS-DRG including the MSDRG amount, teaching, disproportionate share, capital, and outlier payments for all cases. Also included in the average total payments are co-payment and deductible amounts that the patient is responsible for and any additional payments by third parties for coordination of benefits.
+
+    11. Average Medicare Payments: The average amount that Medicare pays to the provider for Medicare’s share of the MS-DRG. Average Medicare payment amounts include the MS-DRG amount, teaching, disproportionate share, capital, and outlier payments for all cases. Medicare payments DO NOT include beneficiary co-payments and deductible amounts nor any additional payments from third parties for coordination of benefits.
+
+
+-----------------------------------------------------------------------------------------------
+
+INPUT DATASET LINK:
+-------------------
+https://drive.google.com/file/d/0ByJLBTmJojjzWWRsM0hEMzd6SUE/view
+
+SOURCE CODE:
+-------------
+
+hadoop fs -mkdir -p /user/hadoop/input/
+hadoop fs -put /home/cloudera/Downloads/inpatientCharges.csv /user/hadoop/input/
+spark-shell
+val rdd1 = sc.textFile("hdfs://quickstart.cloudera:8020/user/hadoop/input/inpatientCharges.csv")
+val header = rdd1.first
+val rdd2 = rdd1.filter{ line => line != header}
+val rdd3 = rdd2.map( line => line.toString())
+val rdd4 = rdd3.map( _.split(","))
+val rdd5 = rdd4.filter{ x =>  x(1).matches("\\d+") }  
+rdd5.count
+val rdd6 = rdd5.filter{ x =>  x(6).matches("\\d+") }
+rdd6.count
+val rdd7 = rdd6.filter{ x =>  x(8).matches("\\d+") }
+rdd7.count
+case class healthcase( DRGDefinition: String 
+,ProviderId: Int 
+,ProviderName: String 
+,ProviderStreetAddress: String 
+,ProviderCity: String 
+,ProviderState: String 
+,ProviderZipCode: Int 
+,HospitalReferralRegionDescription: String 
+,TotalDischarges: Int 
+,AverageCoveredCharges: Double 
+,AverageTotalPayments: Double 
+,AverageMedicarePayments: Double 
+)
+
+val df1 = rdd7.map(x => healthcare(x(0), x(1).toInt, x(2),  x(3), x(4), x(5), x(6).toInt, x(7), x(8).toInt, x(9).toDouble, x(10).toDouble,
+ x(11).toDouble)).toDF
+
+
+
+Problem Statement 1: 
+Find the amount of Average Covered Charges per state.
+==========================================================================
+df1.groupBy("ProviderState").avg("AverageCoveredCharges").orderBy(avg("AverageCoveredCharges")).show
+
+
+
+Problem Statement 2: 
+Find the amount of Average Total Payments charges per state.
+================================================================================
+df1.groupBy("ProviderState").avg("AverageTotalPayments").orderBy(avg("AverageTotalPayments").desc).show
+
+
+
+Problem Statement 3: 
+Find the amount of Average Medicare Payments charges per state in descending order.
+====================================================================================
+df1.groupBy("ProviderState").avg("AverageMedicarePayments").orderBy(desc("ProviderState"))show
+
+
+
+Problem Statement 4: 
+Find the amount of Average Medicare Payments charges per state in ascending order.
+====================================================================================
+df1.groupBy("ProviderState").avg("AverageMedicarePayments").orderBy("ProviderState")show
+
+
+
+
+Problem Statement 5: 
+Find the top 10 records for the amount of Average Medicare Payments charges per state in ascending order.
+====================================================================================
+df1.groupBy("ProviderState").avg("AverageMedicarePayments").orderBy("ProviderState").take(10).foreach(println)
+
+
+
+
+Problem Statement 6: 
+Find out the total number of Discharges per state and for each disease.
+============================================================================================
+df1.groupBy(("ProviderState"),("DRGDefinition")).sum("TotalDischarges").orderBy(("ProviderState"),("DRGDefinition")).show
+
+
